@@ -8,11 +8,11 @@ pub struct Registers {
     a: u8,
     /// X index register
     x: u8,
-    // Y index register
+    /// Y index register
     y: u8,
-    // Program counter
+    /// Program counter
     pc: u16,
-    // Stack pointer
+    /// Stack pointer
     sp: u16,
     /// Processor status register
     psr: Psr,

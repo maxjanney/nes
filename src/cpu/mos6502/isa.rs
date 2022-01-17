@@ -440,23 +440,81 @@ fn fetch_operand(regs: &mut Registers, mem: &mut Memory, mode: AddressingMode) -
             Operand(mem.read8(addr), addr, 0)
         }
         ZeroPage => {
-            let addr = mem.read8(regs.bump()) as u16;
-            Operand(mem.read8(addr), addr, 0)
+            let eff_addr = mem.read8(regs.bump()) as u16;
+            Operand(mem.read8(eff_addr), eff_addr, 0)
         }
         Indirect => {
-            let abs_addr = mem.read16(regs.pc);
+            let eff_addr = mem.read16(regs.pc);
             regs.pc = regs.pc.wrapping_add(2);
-            Operand(0, mem.read16(abs_addr), 0)
+            Operand(0, mem.read16(eff_addr), 0)
         }
         ZeroPageX => {
-            let abs_addr = u16::from(mem.read8(regs.bump()).wrapping_add(regs.x));
-            Operand(mem.read8(abs_addr), abs_addr, 0)
+            let eff_addr = u16::from(mem.read8(regs.bump()).wrapping_add(regs.x));
+            Operand(mem.read8(eff_addr), eff_addr, 0)
         }
         ZeroPageY => {
-            let abs_addr = u16::from(mem.read8(regs.bump()).wrapping_add(regs.y));
-            Operand(mem.read8(abs_addr), abs_addr, 0)
+            let eff_addr = u16::from(mem.read8(regs.bump()).wrapping_add(regs.y));
+            Operand(mem.read8(eff_addr), eff_addr, 0)
         }
-        _ => unimplemented!(),
+        Relative => {
+            let abs_addr = (mem.read8(regs.bump()) as i8) as i32;
+            let eff_addr = (abs_addr + regs.pc as i32) as u16;
+            let extra_cycle = if (eff_addr & 0xff00) != (regs.pc & 0xff00) {
+                1
+            } else {
+                0
+            };
+            Operand(0, eff_addr, extra_cycle)
+        }
+        AbsoluteX => {
+            let abs_addr = mem.read16(regs.pc);
+            let eff_addr = abs_addr.wrapping_add(regs.x as u16);
+            regs.pc = regs.pc.wrapping_add(2);
+
+            let extra_cycle = if (eff_addr & 0xff00) != (abs_addr & 0xff00) {
+                1
+            } else {
+                0
+            };
+
+            Operand(mem.read8(eff_addr), eff_addr, extra_cycle)
+        }
+        AbsoluteY => {
+            let abs_addr = mem.read16(regs.pc);
+            let eff_addr = abs_addr.wrapping_add(regs.y as u16);
+            regs.pc = regs.pc.wrapping_add(2);
+
+            let extra_cycle = if (eff_addr & 0xff00) != (abs_addr & 0xff00) {
+                1
+            } else {
+                0
+            };
+
+            Operand(mem.read8(abs_addr), abs_addr, extra_cycle)
+        }
+        IndirectX => {
+            let src_addr = u16::from(mem.read8(regs.bump()).wrapping_add(regs.x));
+            let lo = mem.read8(src_addr);
+            let hi = mem.read8((src_addr + 1) & 0xff);
+            let eff_addr = (u16::from(hi) << 8) | u16::from(lo);
+            Operand(mem.read8(eff_addr), eff_addr, 0)
+        }
+        IndirectY => {
+            let src_addr = mem.read8(regs.bump());
+            let lo = mem.read8(src_addr as u16);
+            let hi = mem.read8(src_addr.wrapping_add(1) as u16);
+
+            let abs_addr = (u16::from(hi) << 8) | u16::from(lo);
+            let eff_addr = abs_addr.wrapping_add(regs.y as u16);
+            
+            let extra_cyce = if (eff_addr & 0xff00) != (abs_addr & 0xff00) {
+                1
+            } else {
+                0
+            };
+
+            Operand(mem.read8(eff_addr), eff_addr, extra_cyce)
+        }
     }
 }
 
