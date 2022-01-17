@@ -363,28 +363,64 @@ impl From<u8> for Instruction {
     }
 }
 
-pub fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
+pub(super) fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
     let Instruction(mode, opcode, cycles) = Instruction::from(op);
     let Operand(arg, addr, mut extra_cycle) = fetch_operand(regs, mem, mode);
 
+    macro_rules! asl {
+        () => {{
+            let res = arg << 1;
+            regs.psr.set(Psr::C, arg & 0x80 != 0);
+            regs.psr.set(Psr::Z, res == 0);
+            regs.psr.set(Psr::N, res & 0x80 != 0);
+            if mode == Accumulator {
+                regs.a = res;
+            } else {
+                mem.write8(addr, res);
+            }
+        }};
+    }
+
     macro_rules! branch {
-        ($cond:expr) => {
+        ($cond:expr) => {{
             if $cond {
                 regs.pc = addr;
                 extra_cycle += 1;
             }
-        };
+        }};
     }
 
-    macro_rules! trr {
-        ($r1:ident, $r2:ident) => {
+    macro_rules! compare {
+        ($r:ident) => {{
+            let res = regs.$r.wrapping_sub(arg);
+            regs.psr.set(Psr::C, regs.$r >= arg);
+            regs.psr.set(Psr::Z, res == 0);
+            regs.psr.set(Psr::N, res & 0x80 != 0);
+        }};
+    }
+
+    macro_rules! decrement {
+        ($r:ident) => {{
+            let res = regs.$r.wrapping_sub(1);
+            regs.psr.set(Psr::Z, res == 0);
+            regs.psr.set(Psr::N, res & 0x80 != 0);
+            regs.$r = res;
+        }};
+    }
+
+    macro_rules! transfer {
+        ($r1:ident, $r2:ident) => {{
             regs.psr.set(Psr::Z, regs.$r1 == 0);
             regs.psr.set(Psr::N, regs.$r1 & 0x80 != 0);
             regs.$r2 = regs.$r1;
-        };
+        }};
     }
 
     match opcode {
+        ADC => adc(regs, arg),
+        AND => and(regs, arg),
+        ASL => asl!(),
+
         BCC => branch!(!regs.psr.contains(Psr::C)),
         BCS => branch!(regs.psr.contains(Psr::C)),
         BEQ => branch!(regs.psr.contains(Psr::Z)),
@@ -398,6 +434,13 @@ pub fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
         CLD => regs.psr.remove(Psr::D),
         CLI => regs.psr.remove(Psr::I),
         CLV => regs.psr.remove(Psr::V),
+
+        CMP => compare!(a),
+        CPX => compare!(x),
+        CPY => compare!(y),
+
+        DEX => decrement!(x),
+        DEY => decrement!(y),
 
         PHA => push(regs, mem, regs.a),
         PHP => push(regs, mem, regs.psr.bits()),
@@ -415,10 +458,10 @@ pub fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
         STX => mem.write8(addr, regs.x),
         STY => mem.write8(addr, regs.y),
 
-        TAX => { trr!(a, x); }
-        TAY => { trr!(a, y); }
-        TXA => { trr!(x, a); }
-        TYA => { trr!(y, a); }
+        TAX => transfer!(a, x),
+        TAY => transfer!(a, y),
+        TXA => transfer!(x, a),
+        TYA => transfer!(y, a),
 
         TSX => tsx(regs),
         TXS => { regs.sp = (regs.x as u16) | 0x0100; }
@@ -435,9 +478,9 @@ fn fetch_operand(regs: &mut Registers, mem: &mut Memory, mode: AddressingMode) -
         Accumulator => Operand(regs.a, 0, 0),
         Immediate => Operand(mem.read8(regs.bump()), 0, 0),
         Absolute => {
-            let addr = mem.read16(regs.pc);
+            let eff_addr = mem.read16(regs.pc);
             regs.pc = regs.pc.wrapping_add(2);
-            Operand(mem.read8(addr), addr, 0)
+            Operand(mem.read8(eff_addr), eff_addr, 0)
         }
         ZeroPage => {
             let eff_addr = mem.read8(regs.bump()) as u16;
@@ -490,7 +533,7 @@ fn fetch_operand(regs: &mut Registers, mem: &mut Memory, mode: AddressingMode) -
                 0
             };
 
-            Operand(mem.read8(abs_addr), abs_addr, extra_cycle)
+            Operand(mem.read8(eff_addr), eff_addr, extra_cycle)
         }
         IndirectX => {
             let src_addr = u16::from(mem.read8(regs.bump()).wrapping_add(regs.x));
@@ -506,7 +549,7 @@ fn fetch_operand(regs: &mut Registers, mem: &mut Memory, mode: AddressingMode) -
 
             let abs_addr = (u16::from(hi) << 8) | u16::from(lo);
             let eff_addr = abs_addr.wrapping_add(regs.y as u16);
-            
+
             let extra_cyce = if (eff_addr & 0xff00) != (abs_addr & 0xff00) {
                 1
             } else {
@@ -516,6 +559,28 @@ fn fetch_operand(regs: &mut Registers, mem: &mut Memory, mode: AddressingMode) -
             Operand(mem.read8(eff_addr), eff_addr, extra_cyce)
         }
     }
+}
+
+fn adc(regs: &mut Registers, arg: u8) {
+    let tmp = u16::from(regs.a) + u16::from(arg) + u16::from(regs.psr.contains(Psr::C));
+    let res = tmp as u8;
+    regs.psr.set(Psr::C, tmp > 0xff);
+    regs.psr.set(Psr::Z, res == 0);
+    regs.psr.set(Psr::V, ((regs.a ^ res) & (arg ^ res) & 0x80) != 0);
+    regs.psr.set(Psr::N, res & 0x80 != 0);
+    regs.a = res;
+}
+
+fn and(regs: &mut Registers, arg: u8) {
+    let res = regs.a & arg;
+    regs.psr.set(Psr::Z, res == 0);
+    regs.psr.set(Psr::N, res & 0x80 != 0);
+}
+
+fn bit(regs: &mut Registers, arg: u8) {
+    regs.psr.set(Psr::Z, (regs.a & arg) == 0);
+    regs.psr.set(Psr::V, arg & 0x40 != 0);
+    regs.psr.set(Psr::N, arg & 0x80 != 0);
 }
 
 fn push(regs: &mut Registers, mem: &mut Memory, val: u8) {
