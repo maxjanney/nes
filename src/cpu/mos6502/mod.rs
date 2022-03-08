@@ -1,5 +1,7 @@
 mod isa;
 
+pub use isa::exec;
+
 use bitflags::bitflags;
 
 #[derive(Debug)]

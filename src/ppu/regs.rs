@@ -2,7 +2,7 @@ use bitflags::bitflags;
 
 // Write only Ppu Control register, mapped to $2000
 bitflags! {
-    pub(super) struct Control: u8 {
+    pub struct Control: u8 {
         /// Base nametable address
         /// (0 = $2000; 1 = $2400; 2 = $2800; 3 = $2C00)
         const N1 = 0b00000001;
@@ -29,7 +29,7 @@ bitflags! {
 }
 
 impl Control {
-    pub(super) fn increment_amt(&self) -> u16 {
+    pub fn increment_amt(&self) -> u16 {
         if self.contains(Control::I) {
             32
         } else {
@@ -40,7 +40,7 @@ impl Control {
 
 // Write only Ppu Mask register, mapped to $2001
 bitflags! {
-    pub(super) struct Mask: u8 {
+    pub struct Mask: u8 {
         /// Greyscale
         /// (0: normal color, 1: produce a greyscale display)
         const GS = 0b00000001;
@@ -63,7 +63,7 @@ bitflags! {
 
 // Read only Ppu Status register, mapped to $2002
 bitflags! {
-    pub(super) struct Status: u8 {
+    pub struct Status: u8 {
         /// Least significant bits previously written into a Ppu register
         /// I have no idea if these are actually used
         const U1 = 0b00000001;
@@ -83,7 +83,7 @@ bitflags! {
 
 // Write only Ppu Scrolling position register, mapped to $2005
 #[derive(Default)]
-pub(super) struct Scroll {
+pub struct Scroll {
     /// scroll-x
     x: u8,
     /// scroll-y
@@ -93,7 +93,7 @@ pub(super) struct Scroll {
 }
 
 impl Scroll {
-    pub(super) fn set(&mut self, val: u8) {
+    pub fn set(&mut self, val: u8) {
         if self.latched {
             self.y = val;
         } else {
@@ -106,7 +106,7 @@ impl Scroll {
 const ADDR_MAX: u16 = 0x3fff;
 
 // Write only Ppu Address register, mapped to $2006
-pub(super) struct Addr {
+pub struct Addr {
     /// Raw addr
     raw: u16,
     /// Alternate between hi and lo
@@ -114,11 +114,11 @@ pub(super) struct Addr {
 }
 
 impl Addr {
-    pub(super) fn new() -> Self {
+    pub fn new() -> Self {
         Self { raw: 0, hi: true }
     }
 
-    pub(super) fn set(&mut self, val: u8) {
+    pub fn set(&mut self, val: u8) {
         self.raw = if self.hi {
             (self.raw & 0x00ff) | ((val as u16) << 8)
         } else {
@@ -127,7 +127,7 @@ impl Addr {
         self.hi = !self.hi
     }
 
-    pub(super) fn increment(&mut self, amt: u16) {
+    pub fn increment(&mut self, amt: u16) {
         self.raw = self.raw.wrapping_add(amt) & ADDR_MAX;
     }
 }

@@ -363,7 +363,7 @@ impl From<u8> for Instruction {
     }
 }
 
-pub(super) fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
+pub fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
     let Instruction(mode, opcode, cycles) = Instruction::from(op);
     let Operand(arg, addr, mut extra_cycle) = fetch_operand(regs, mem, mode);
 
@@ -444,11 +444,17 @@ pub(super) fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
 
         PHA => push(regs, mem, regs.a),
         PHP => push(regs, mem, regs.psr.bits()),
-        PLA => { regs.a = pop(regs, mem); }
-        PLP => { regs.psr = Psr::from_bits_truncate(pop(regs, mem)); }
+        PLA => {
+            regs.a = pop(regs, mem);
+        }
+        PLP => {
+            regs.psr = Psr::from_bits_truncate(pop(regs, mem));
+        }
 
         RTI => rti(regs, mem),
-        RTS => { regs.pc = pop16(regs, mem).wrapping_add(1); }
+        RTS => {
+            regs.pc = pop16(regs, mem).wrapping_add(1);
+        }
 
         SEC => regs.psr.insert(Psr::C),
         SED => regs.psr.insert(Psr::D),
@@ -464,7 +470,9 @@ pub(super) fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
         TYA => transfer!(y, a),
 
         TSX => tsx(regs),
-        TXS => { regs.sp = (regs.x as u16) | 0x0100; }
+        TXS => {
+            regs.sp = (regs.x as u16) | 0x0100;
+        }
 
         _ => unimplemented!("{:?}", opcode),
     };
@@ -566,7 +574,8 @@ fn adc(regs: &mut Registers, arg: u8) {
     let res = tmp as u8;
     regs.psr.set(Psr::C, tmp > 0xff);
     regs.psr.set(Psr::Z, res == 0);
-    regs.psr.set(Psr::V, ((regs.a ^ res) & (arg ^ res) & 0x80) != 0);
+    regs.psr
+        .set(Psr::V, ((regs.a ^ res) & (arg ^ res) & 0x80) != 0);
     regs.psr.set(Psr::N, res & 0x80 != 0);
     regs.a = res;
 }
