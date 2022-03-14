@@ -29,6 +29,16 @@ bitflags! {
 }
 
 impl Control {
+    pub fn update(&mut self, val: u8) {
+        unsafe {
+            *self = Self::from_bits_unchecked(val);
+        }
+    }
+
+    pub fn nmi(&self) -> bool {
+        self.contains(Self::V)
+    }
+
     pub fn increment_amt(&self) -> u16 {
         if self.contains(Control::I) {
             32
@@ -61,6 +71,14 @@ bitflags! {
     }
 }
 
+impl Mask {
+    pub fn update(&mut self, val: u8) {
+        unsafe {
+            *self = Self::from_bits_unchecked(val);
+        }
+    }
+}
+
 // Read only Ppu Status register, mapped to $2002
 bitflags! {
     pub struct Status: u8 {
@@ -81,6 +99,12 @@ bitflags! {
     }
 }
 
+impl Status {
+    pub fn in_vblank(&self) -> bool {
+        self.contains(Self::V)
+    }
+}
+
 // Write only Ppu Scrolling position register, mapped to $2005
 #[derive(Default)]
 pub struct Scroll {
@@ -93,7 +117,7 @@ pub struct Scroll {
 }
 
 impl Scroll {
-    pub fn set(&mut self, val: u8) {
+    pub fn update(&mut self, val: u8) {
         if self.latched {
             self.y = val;
         } else {
@@ -118,7 +142,7 @@ impl Addr {
         Self { raw: 0, hi: true }
     }
 
-    pub fn set(&mut self, val: u8) {
+    pub fn update(&mut self, val: u8) {
         self.raw = if self.hi {
             (self.raw & 0x00ff) | ((val as u16) << 8)
         } else {

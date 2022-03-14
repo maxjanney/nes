@@ -22,11 +22,11 @@ impl Memory {
             // 2 KB internam RAM mirrors
             0x0000..=0x1fff => self.ram[(addr & 0x7ff) as usize],
             // PPU Status register
-            0x2002 => self.ppu.borrow_mut().stat(),
+            0x2002 => self.ppu.borrow_mut().read_stat(),
             // PPU OAM data
             0x2004 => self.ppu.borrow().read_oam(),
             // PPU Data register
-            0x2007 => self.ppu.borrow_mut().read_data(),
+            0x2007 => self.ppu.borrow_mut().read_vram(),
             _ => 0,
         }
     }
@@ -35,5 +35,24 @@ impl Memory {
         (self.read8(addr) as u16) | ((self.read8(addr + 1) as u16) << 8)
     }
 
-    pub fn write8(&mut self, addr: u16, val: u8) {}
+    pub fn write8(&mut self, addr: u16, val: u8) {
+        let mut ppu = self.ppu.borrow_mut();
+        match addr {
+            // PPU Controller register
+            0x2000 => ppu.write_ctrl(val),
+            // PPU Mask register
+            0x2001 => ppu.write_mask(val),
+            // PPU OAM address
+            0x2003 => ppu.write_oam_addr(val),
+            // PPU OAM data
+            0x2004 => ppu.write_oam_data(val),
+            // PPU Scroll register
+            0x2005 => ppu.write_scroll(val),
+            // PPU Address register
+            0x2006 => ppu.write_address(val),
+            // PPU Data register
+            0x2007 => ppu.write_vram(val),
+            _ => {}
+        }
+    }
 }

@@ -22,6 +22,8 @@ pub struct Ppu {
     oam_data: [u8; OAM_SIZE],
     /// Ppu's ram, $2007
     ram: [u8; RAM_SIZE],
+    /// NMI Interrupt flag
+    nmi: bool,
 }
 
 impl Ppu {
@@ -35,11 +37,12 @@ impl Ppu {
             oam_addr: 0,
             oam_data: [0u8; OAM_SIZE],
             ram: [0u8; RAM_SIZE],
+            nmi: false,
         }
     }
 
     // Read the status register
-    pub fn stat(&mut self) -> u8 {
+    pub fn read_stat(&mut self) -> u8 {
         let bits = self.stat.bits();
         self.stat.remove(Status::V);
         self.scroll.latched = false;
@@ -52,10 +55,54 @@ impl Ppu {
         self.oam_data[self.oam_addr as usize]
     }
 
-    // Read the data register
-    pub fn read_data(&mut self) -> u8 {
+    // Read from vram
+    pub fn read_vram(&mut self) -> u8 {
         let addr = self.addr.raw;
         self.addr.increment(self.ctrl.increment_amt());
         0
+    }
+
+    // Write to the control register
+    pub fn write_ctrl(&mut self, val: u8) {
+        let nmi = self.ctrl.nmi();
+        self.ctrl.update(val);
+        if !nmi && self.ctrl.nmi() && self.stat.in_vblank() {
+            self.nmi = true;
+        }
+    }
+
+    // Write to the mask register
+    pub fn write_mask(&mut self, val: u8) {
+        self.mask.update(val);
+    }
+
+    // Write to the oam address
+    pub fn write_oam_addr(&mut self, val: u8) {
+        self.oam_addr = val as u16;
+    }
+
+    // Write oam data
+    pub fn write_oam_data(&mut self, val: u8) {
+        self.oam_data[self.oam_addr as usize] = val;
+        self.oam_addr = self.oam_addr.wrapping_add(1);
+    }
+
+    // Write to the scroll register
+    pub fn write_scroll(&mut self, val: u8) {
+        self.scroll.update(val);
+    }
+
+    // Write to the address register
+    pub fn write_address(&mut self, val: u8) {
+        self.addr.update(val);
+    }
+
+    // Write to the data register
+    pub fn write_vram(&mut self, val: u8) {
+        let addr = self.addr.raw;
+        match addr {
+            _ => {}
+        }
+        self.addr.increment(self.ctrl.increment_amt());
     }
 }
