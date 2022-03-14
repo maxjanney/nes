@@ -84,12 +84,12 @@ bitflags! {
 // Write only Ppu Scrolling position register, mapped to $2005
 #[derive(Default)]
 pub struct Scroll {
+    /// alternate writes
+    pub latched: bool,
     /// scroll-x
     x: u8,
     /// scroll-y
     y: u8,
-    /// alternate writes
-    latched: bool,
 }
 
 impl Scroll {
@@ -107,10 +107,10 @@ const ADDR_MAX: u16 = 0x3fff;
 
 // Write only Ppu Address register, mapped to $2006
 pub struct Addr {
-    /// Raw addr
-    raw: u16,
     /// Alternate between hi and lo
-    hi: bool,
+    pub hi: bool,
+    /// Raw addr
+    pub raw: u16,
 }
 
 impl Addr {

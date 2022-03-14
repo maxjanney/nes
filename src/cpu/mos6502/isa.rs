@@ -444,17 +444,11 @@ pub fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
 
         PHA => push(regs, mem, regs.a),
         PHP => push(regs, mem, regs.psr.bits()),
-        PLA => {
-            regs.a = pop(regs, mem);
-        }
-        PLP => {
-            regs.psr = Psr::from_bits_truncate(pop(regs, mem));
-        }
+        PLA => { regs.a = pop(regs, mem); }
+        PLP => { regs.psr = Psr::from_bits_truncate(pop(regs, mem)); }
 
         RTI => rti(regs, mem),
-        RTS => {
-            regs.pc = pop16(regs, mem).wrapping_add(1);
-        }
+        RTS => { regs.pc = pop16(regs, mem).wrapping_add(1); }
 
         SEC => regs.psr.insert(Psr::C),
         SED => regs.psr.insert(Psr::D),
@@ -470,9 +464,7 @@ pub fn exec(op: u8, regs: &mut Registers, mem: &mut Memory) -> u32 {
         TYA => transfer!(y, a),
 
         TSX => tsx(regs),
-        TXS => {
-            regs.sp = (regs.x as u16) | 0x0100;
-        }
+        TXS => { regs.sp = (regs.x as u16) | 0x0100; }
 
         _ => unimplemented!("{:?}", opcode),
     };
