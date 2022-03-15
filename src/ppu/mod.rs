@@ -21,7 +21,7 @@ pub struct Ppu {
     /// OAM data, $2004
     oam_data: [u8; OAM_SIZE],
     /// Ppu's ram, $2007
-    vram: [u8; RAM_SIZE],
+    vram: [u8; VRAM_SIZE],
     /// Character rom
     char_rom: Vec<u8>,
     /// NMI Interrupt flag
@@ -40,7 +40,7 @@ impl Ppu {
             addr: Addr::new(),
             oam_addr: 0,
             oam_data: [0u8; OAM_SIZE],
-            vram: [0u8; RAM_SIZE],
+            vram: [0u8; VRAM_SIZE],
             char_rom,
             nmi: false,
             data_buf: 0,
