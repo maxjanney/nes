@@ -3,7 +3,7 @@ mod regs;
 use regs::*;
 
 const OAM_SIZE: usize = 64 * 4;
-const RAM_SIZE: usize = 2048;
+const VRAM_SIZE: usize = 2048;
 
 pub struct Ppu {
     /// Control register
@@ -21,13 +21,17 @@ pub struct Ppu {
     /// OAM data, $2004
     oam_data: [u8; OAM_SIZE],
     /// Ppu's ram, $2007
-    ram: [u8; RAM_SIZE],
+    vram: [u8; RAM_SIZE],
+    /// Character rom
+    char_rom: Vec<u8>,
     /// NMI Interrupt flag
     nmi: bool,
+    /// Internal data buf
+    data_buf: u8,
 }
 
 impl Ppu {
-    pub fn new() -> Self {
+    pub fn new(char_rom: Vec<u8>) -> Self {
         Self {
             ctrl: Control::empty(),
             mask: Mask::empty(),
@@ -36,8 +40,10 @@ impl Ppu {
             addr: Addr::new(),
             oam_addr: 0,
             oam_data: [0u8; OAM_SIZE],
-            ram: [0u8; RAM_SIZE],
+            vram: [0u8; RAM_SIZE],
+            char_rom,
             nmi: false,
+            data_buf: 0,
         }
     }
 
@@ -57,9 +63,26 @@ impl Ppu {
 
     // Read from vram
     pub fn read_vram(&mut self) -> u8 {
-        let addr = self.addr.raw;
+        let addr = self.addr.raw as usize;
         self.addr.increment(self.ctrl.increment_amt());
-        0
+        match addr {
+            // All reads in range 0 - $3eff will return the contents of an internal read buffer
+            // this read buffer is updated after the read operation with the current vram address
+
+            // Character rom/pattern tables
+            0x0000..=0x1fff => {
+                let res = self.data_buf;
+                self.data_buf = self.char_rom[addr];
+                res
+            }
+            // Internal vram/nametables
+            0x2000..=0x2fff => {
+                let res = self.data_buf;
+                self.data_buf = self.vram[addr];
+                res
+            }
+            _ => 0,
+        }
     }
 
     // Write to the control register

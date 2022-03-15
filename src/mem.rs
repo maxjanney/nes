@@ -10,10 +10,10 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new() -> Self {
+    pub fn new(char_rom: Vec<u8>) -> Self {
         Self {
             ram: [0; RAM_SIZE],
-            ppu: RefCell::new(Ppu::new()),
+            ppu: RefCell::new(Ppu::new(char_rom)),
         }
     }
 
