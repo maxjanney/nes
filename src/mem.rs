@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use crate::ppu::Ppu;
+use crate::ppu::{Mirroring, Ppu};
 
 const RAM_SIZE: usize = 0x800;
 
@@ -10,10 +10,10 @@ pub struct Memory {
 }
 
 impl Memory {
-    pub fn new(char_rom: Vec<u8>) -> Self {
+    pub fn new(char_rom: Vec<u8>, mirroring: Mirroring) -> Self {
         Self {
             ram: [0; RAM_SIZE],
-            ppu: RefCell::new(Ppu::new(char_rom)),
+            ppu: RefCell::new(Ppu::new(char_rom, mirroring)),
         }
     }
 

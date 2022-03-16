@@ -1,9 +1,17 @@
 mod regs;
 
+use self::Mirroring::*;
 use regs::*;
 
 const OAM_SIZE: usize = 64 * 4;
 const VRAM_SIZE: usize = 2048;
+
+#[derive(Debug, Clone, Copy)]
+pub enum Mirroring {
+    Vertical,
+    Horizontal,
+    FourScreen,
+}
 
 pub struct Ppu {
     /// Control register
@@ -24,6 +32,8 @@ pub struct Ppu {
     vram: [u8; VRAM_SIZE],
     /// Character rom
     char_rom: Vec<u8>,
+    /// Nametable mirroring
+    mirroring: Mirroring,
     /// NMI Interrupt flag
     nmi: bool,
     /// Internal data buf
@@ -31,7 +41,7 @@ pub struct Ppu {
 }
 
 impl Ppu {
-    pub fn new(char_rom: Vec<u8>) -> Self {
+    pub fn new(char_rom: Vec<u8>, mirroring: Mirroring) -> Self {
         Self {
             ctrl: Control::empty(),
             mask: Mask::empty(),
@@ -42,6 +52,7 @@ impl Ppu {
             oam_data: [0u8; OAM_SIZE],
             vram: [0u8; VRAM_SIZE],
             char_rom,
+            mirroring,
             nmi: false,
             data_buf: 0,
         }
@@ -63,7 +74,7 @@ impl Ppu {
 
     // Read from vram
     pub fn read_vram(&mut self) -> u8 {
-        let addr = self.addr.raw as usize;
+        let addr = self.addr.raw;
         self.addr.increment(self.ctrl.increment_amt());
         match addr {
             // All reads in range 0 - $3eff will return the contents of an internal read buffer
@@ -72,13 +83,13 @@ impl Ppu {
             // Character rom/pattern tables
             0x0000..=0x1fff => {
                 let res = self.data_buf;
-                self.data_buf = self.char_rom[addr];
+                self.data_buf = self.char_rom[addr as usize];
                 res
             }
             // Internal vram/nametables
             0x2000..=0x2fff => {
                 let res = self.data_buf;
-                self.data_buf = self.vram[addr];
+                self.data_buf = self.vram[self.mirror(addr) as usize];
                 res
             }
             _ => 0,
@@ -124,8 +135,27 @@ impl Ppu {
     pub fn write_vram(&mut self, val: u8) {
         let addr = self.addr.raw;
         match addr {
+            // Character rom/pattern tables
+            0x0000..=0x1fff => {
+                panic!("Attempted write to character rom: {}", addr);
+            }
+            // Internal vram/nametables
+            0x2000..=0x2fff => {
+                self.vram[self.mirror(addr) as usize] = val;
+            }
             _ => {}
         }
         self.addr.increment(self.ctrl.increment_amt());
+    }
+
+    fn mirror(&self, addr: u16) -> u16 {
+        let addr = addr - 0x2000;
+        let nametable = addr / 0x400;
+        match (self.mirroring, nametable) {
+            (Vertical, 2 | 3) => addr - 0x800,
+            (Horizontal, 1 | 2) => addr - 0x400,
+            (Horizontal, 3) => addr - 0x800,
+            _ => addr,
+        }
     }
 }
