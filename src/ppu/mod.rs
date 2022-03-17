@@ -32,6 +32,8 @@ pub struct Ppu {
     vram: [u8; VRAM_SIZE],
     /// Character rom
     char_rom: Vec<u8>,
+    /// Frame palette
+    palette_ram: [u8; 32],
     /// Nametable mirroring
     mirroring: Mirroring,
     /// NMI Interrupt flag
@@ -52,6 +54,7 @@ impl Ppu {
             oam_data: [0u8; OAM_SIZE],
             vram: [0u8; VRAM_SIZE],
             char_rom,
+            palette_ram: [0u8; 32],
             mirroring,
             nmi: false,
             data_buf: 0,
@@ -92,6 +95,10 @@ impl Ppu {
                 self.data_buf = self.vram[self.mirror(addr) as usize];
                 res
             }
+            // Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => self.palette_ram[((addr - 0x10) & 0xff) as usize],
+            // Palette RAM indexes
+            0x3f00..=0x3f1f => self.palette_ram[(addr & 0xff) as usize],
             _ => 0,
         }
     }
@@ -143,6 +150,12 @@ impl Ppu {
             0x2000..=0x2fff => {
                 self.vram[self.mirror(addr) as usize] = val;
             }
+            // Addresses $3F10/$3F14/$3F18/$3F1C are mirrors of $3F00/$3F04/$3F08/$3F0C
+            0x3f10 | 0x3f14 | 0x3f18 | 0x3f1c => {
+                self.palette_ram[((addr - 0x10) & 0xff) as usize] = val
+            }
+            // Palette RAM indexes
+            0x3f00..=0x3f1f => self.palette_ram[(addr & 0xff) as usize] = val,
             _ => {}
         }
         self.addr.increment(self.ctrl.increment_amt());
