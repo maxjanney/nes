@@ -35,6 +35,24 @@ impl Control {
         }
     }
 
+    pub fn nametable_address(&self) -> u16 {
+        match self.bits() & 0x3 {
+            0 => 0x2000,
+            1 => 0x2400,
+            2 => 0x2800,
+            3 => 0x2c00,
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn background_patterntable_address(&self) -> usize {
+        if self.contains(Self::B) {
+            0x1000
+        } else {
+            0x0000
+        }
+    }
+
     pub fn nmi(&self) -> bool {
         self.contains(Self::V)
     }
