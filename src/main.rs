@@ -1,9 +1,11 @@
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-use sdl2::libc::perror;
 use sdl2::pixels::PixelFormatEnum;
 
-use std::{env, fs};
+use std::{env, fs, vec};
+
+const WIDTH: usize = 2 * 256;
+const HEIGHT: usize = 240;
 
 #[derive(Debug, Clone, Copy)]
 enum Bank {
@@ -20,7 +22,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .position_centered()
         .build()?;
 
-    let mut canvas = window.into_canvas().present_vsync().build()?;
+    let mut canvas = window.into_canvas().build()?;
     let mut event_pump = sdl_context.event_pump()?;
     canvas.set_scale(3.0, 3.0)?;
 
@@ -43,7 +45,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let char_start = prg_start + prg_size;
     let char_rom = &rom[char_start..(char_start + char_size)];
 
-    let mut left_bank = tile_bank(&char_rom, Bank::Left);
+    // Get the left or right bank
+    let bank = tile_bank(&char_rom, Bank::Right);
+
+    texture.update(None, &bank, 256 * 3)?;
+    canvas.copy(&texture, None, None)?;
+    canvas.present();
 
     // Main loop
     loop {
@@ -61,12 +68,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn tile_bank(rom: &[u8], bank: Bank) -> Vec<u8> {
-    let mut tiles = Vec::with_capacity(2 * 256 * 240 * 3);
+    let mut tiles = vec![0; 3 * WIDTH * HEIGHT];
     let bank = bank as usize * 0x1000;
+    let mut x = 0;
+    let mut y = 0;
 
-    for i in 0..255 {
-        let start = 16 * i + bank;
-        let tile = &rom[start..(start + 16)];
+    for tilen in 0..256 {
+        if tilen != 0 && tilen % 25 == 0 {
+            x = 0;
+            y += 10;
+        }
+
+        let tilei = 16 * tilen + bank;
+        let tile = &rom[tilei..(tilei + 16)];
+
         for i in 0..8 {
             let (mut lo, mut hi) = (tile[i], tile[i + 8]);
             for j in (0..8).rev() {
@@ -75,82 +90,41 @@ fn tile_bank(rom: &[u8], bank: Bank) -> Vec<u8> {
                 hi >>= 1;
                 // just randomly choose the pixel's color
                 let color = match v {
-                    0 => SYSTEM_PALETTE[0x09],
-                    1 => SYSTEM_PALETTE[0x06],
-                    2 => SYSTEM_PALETTE[0x1c],
-                    3 => SYSTEM_PALETTE[0x33],
+                    0 => SYSTEM_PALETTE[0x01],
+                    1 => SYSTEM_PALETTE[0x23],
+                    2 => SYSTEM_PALETTE[0x27],
+                    3 => SYSTEM_PALETTE[0x30],
                     _ => panic!("{v} is too large!"),
                 };
+                set_pixels(x + j, y + i, color, &mut tiles);
             }
         }
+        x += 10;
     }
 
     tiles
 }
 
-const SYSTEM_PALETTE: [(u8, u8, u8); 64] = [
-    (92, 92, 92),
-    (0, 34, 103),
-    (19, 18, 128),
-    (46, 6, 126),
-    (70, 0, 96),
-    (83, 2, 49),
-    (81, 10, 2),
-    (65, 25, 0),
-    (40, 41, 0),
-    (13, 55, 0),
-    (0, 62, 0),
-    (0, 60, 10),
-    (0, 49, 59),
-    (0, 0, 0),
-    (0, 0, 0),
-    (0, 0, 0),
-    (167, 167, 167),
-    (30, 85, 183),
-    (63, 61, 218),
-    (102, 43, 214),
-    (136, 34, 172),
-    (154, 36, 107),
-    (152, 50, 37),
-    (129, 71, 0),
-    (93, 95, 0),
-    (54, 115, 0),
-    (24, 125, 0),
-    (9, 122, 50),
-    (11, 107, 121),
-    (0, 0, 0),
-    (0, 0, 0),
-    (0, 0, 0),
-    (254, 255, 255),
-    (106, 167, 255),
-    (143, 141, 255),
-    (185, 121, 255),
-    (221, 111, 255),
-    (241, 114, 190),
-    (238, 129, 115),
-    (214, 152, 55),
-    (176, 178, 24),
-    (134, 199, 28),
-    (100, 209, 65),
-    (82, 206, 129),
-    (84, 190, 205),
-    (69, 69, 69),
-    (0, 0, 0),
-    (0, 0, 0),
-    (254, 255, 255),
-    (192, 218, 255),
-    (208, 207, 255),
-    (226, 198, 255),
-    (241, 194, 255),
-    (249, 195, 228),
-    (248, 202, 196),
-    (238, 212, 169),
-    (222, 223, 155),
-    (204, 231, 157),
-    (189, 236, 174),
-    (181, 234, 202),
-    (182, 228, 234),
-    (176, 176, 176),
-    (0, 0, 0),
-    (0, 0, 0),
+fn set_pixels(x: usize, y: usize, color: (u8, u8, u8), tiles: &mut [u8]) {
+    let index = 3 * (WIDTH * y + x);
+    tiles[index + 0] = color.0;
+    tiles[index + 1] = color.1;
+    tiles[index + 2] = color.2;
+}
+
+#[rustfmt::skip]
+static SYSTEM_PALETTE: [(u8, u8, u8); 64] = [
+   (0x80, 0x80, 0x80), (0x00, 0x3D, 0xA6), (0x00, 0x12, 0xB0), (0x44, 0x00, 0x96), (0xA1, 0x00, 0x5E),
+   (0xC7, 0x00, 0x28), (0xBA, 0x06, 0x00), (0x8C, 0x17, 0x00), (0x5C, 0x2F, 0x00), (0x10, 0x45, 0x00),
+   (0x05, 0x4A, 0x00), (0x00, 0x47, 0x2E), (0x00, 0x41, 0x66), (0x00, 0x00, 0x00), (0x05, 0x05, 0x05),
+   (0x05, 0x05, 0x05), (0xC7, 0xC7, 0xC7), (0x00, 0x77, 0xFF), (0x21, 0x55, 0xFF), (0x82, 0x37, 0xFA),
+   (0xEB, 0x2F, 0xB5), (0xFF, 0x29, 0x50), (0xFF, 0x22, 0x00), (0xD6, 0x32, 0x00), (0xC4, 0x62, 0x00),
+   (0x35, 0x80, 0x00), (0x05, 0x8F, 0x00), (0x00, 0x8A, 0x55), (0x00, 0x99, 0xCC), (0x21, 0x21, 0x21),
+   (0x09, 0x09, 0x09), (0x09, 0x09, 0x09), (0xFF, 0xFF, 0xFF), (0x0F, 0xD7, 0xFF), (0x69, 0xA2, 0xFF),
+   (0xD4, 0x80, 0xFF), (0xFF, 0x45, 0xF3), (0xFF, 0x61, 0x8B), (0xFF, 0x88, 0x33), (0xFF, 0x9C, 0x12),
+   (0xFA, 0xBC, 0x20), (0x9F, 0xE3, 0x0E), (0x2B, 0xF0, 0x35), (0x0C, 0xF0, 0xA4), (0x05, 0xFB, 0xFF),
+   (0x5E, 0x5E, 0x5E), (0x0D, 0x0D, 0x0D), (0x0D, 0x0D, 0x0D), (0xFF, 0xFF, 0xFF), (0xA6, 0xFC, 0xFF),
+   (0xB3, 0xEC, 0xFF), (0xDA, 0xAB, 0xEB), (0xFF, 0xA8, 0xF9), (0xFF, 0xAB, 0xB3), (0xFF, 0xD2, 0xB0),
+   (0xFF, 0xEF, 0xA6), (0xFF, 0xF7, 0x9C), (0xD7, 0xE8, 0x95), (0xA6, 0xED, 0xAF), (0xA2, 0xF2, 0xDA),
+   (0x99, 0xFF, 0xFC), (0xDD, 0xDD, 0xDD), (0x11, 0x11, 0x11), (0x11, 0x11, 0x11),
 ];
